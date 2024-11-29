@@ -55,21 +55,18 @@ int main() {
     std::vector<std::string> vehicle_ends = { "090501", "010301", "250201"};
 
     // Convertir ubigeos a índices
-    std::vector<int> starts, ends;
+   std::vector<int> starts, ends;
     for (size_t i = 0; i < vehicle_starts.size(); ++i) {
-        if (ubigeo_to_indestd::vector<std::string> vehicle_starts = { "150101", "130101", "040101"};
-    std::vector<std::string> vehicle_ends = { "090501", "010301", "250201"};x.find(vehicle_starts[i]) != ubigeo_to_index.end()) {
+        if (ubigeo_to_index.find(vehicle_starts[i]) != ubigeo_to_index.end()) {
             starts.push_back(ubigeo_to_index[vehicle_starts[i]]);
-        }
-        else {
+        } else {
             std::cerr << "Error: Punto de inicio " << vehicle_starts[i] << " no encontrado.\n";
             return EXIT_FAILURE;
         }
 
         if (ubigeo_to_index.find(vehicle_ends[i]) != ubigeo_to_index.end()) {
             ends.push_back(ubigeo_to_index[vehicle_ends[i]]);
-        }
-        else {
+        } else {
             std::cerr << "Error: Punto final " << vehicle_ends[i] << " no encontrado.\n";
             return EXIT_FAILURE;
         }
