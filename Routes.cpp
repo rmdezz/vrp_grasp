@@ -69,150 +69,166 @@ std::vector<int> dijkstra(int start_node, int end_node, const DataModel& data) {
     return path;
 }
 
-// Construir una solución greedy randomizada con penalizaciones suaves
-Solution constructGreedyRandomizedSolution(const DataModel& data, std::mt19937& rng) {
-    int num_vehicles = data.starts.size();
-    Solution solution;
-    solution.routes.resize(num_vehicles);
-    solution.total_durations.resize(num_vehicles, 0);
-    solution.makespan = 0;
-    solution.total_penalty = 0;
+// Construir una solución greedy randomizada con penalizaciones suaves y α
+Solution constructGreedyRandomizedSolution(const DataModel& data, std::mt19937& rng, double alpha) {
+    int num_vehicles = data.starts.size(); // Número de vehículos
+    Solution solution; // Estructura para almacenar la solución
+    solution.routes.resize(num_vehicles); // Inicializar las rutas para cada vehículo
+    solution.total_durations.resize(num_vehicles, 0); // Inicializar las duraciones totales de cada vehículo
+    solution.makespan = 0; // Inicializar el makespan a 0
+    solution.total_penalty = 0; // Inicializar la penalización total a 0
 
-    // Inicializar las rutas con el camino más corto desde el inicio al fin
+    // Inicializar las rutas con el camino más corto desde el nodo de inicio al nodo de fin
     for (int i = 0; i < num_vehicles; ++i) {
-        int start_node = data.starts[i];
-        int end_node = data.ends[i];
+        int start_node = data.starts[i]; // Nodo inicial del vehículo
+        int end_node = data.ends[i]; // Nodo final del vehículo
 
+        // Usar el algoritmo de Dijkstra para encontrar el camino más corto
         std::vector<int> path = dijkstra(start_node, end_node, data);
         if (path.empty()) {
-            // No existe un camino; manejar adecuadamente
+            // Si no existe un camino válido, manejar el error
             std::cerr << "No existe un camino entre " << data.ubigeos[start_node]
                       << " y " << data.ubigeos[end_node] << " para el vehículo " << i + 1 << ".\n";
-            // Excluir el nodo final
+            // Excluir el nodo final y asignar solo el nodo inicial a la ruta
             excludeNode(solution, end_node, data);
-            // Inicializar ruta solo con el nodo de inicio
             solution.routes[i].push_back(start_node);
             continue;
         }
 
-        solution.routes[i] = path;
-        // Las duraciones totales se actualizarán al insertar nodos
+        solution.routes[i] = path; // Asignar el camino más corto a la ruta del vehículo
+        // Las duraciones totales se actualizarán posteriormente
     }
 
-    // **Inicio de la modificación: Excluir nodos ya asignados en rutas iniciales**
-    // Crear un conjunto de nodos ya asignados (incluyendo nodos intermedios de las rutas iniciales)
+    // Crear un conjunto de nodos asignados a partir de las rutas iniciales
     std::unordered_set<int> assigned_nodes;
     for (const auto& route : solution.routes) {
         for (int node : route) {
-            assigned_nodes.insert(node);
+            assigned_nodes.insert(node); // Marcar los nodos como asignados
         }
     }
 
-    // Crear la lista de nodos por asignar excluyendo los nodos ya asignados
+    // Crear una lista de nodos no asignados (excluyendo los ya asignados)
     std::vector<int> unassigned_nodes;
     for (size_t i = 0; i < data.ubigeos.size(); ++i) {
-        bool is_start_or_end = false;
-        for (int v = 0; v < num_vehicles; ++v) {
-            if (i == data.starts[v] || i == data.ends[v]) {
-                is_start_or_end = true;
-                break;
-            }
-        }
-        if (!is_start_or_end && assigned_nodes.find(i) == assigned_nodes.end()) {
-            unassigned_nodes.push_back(i);
+        if (assigned_nodes.find(i) == assigned_nodes.end()) {
+            unassigned_nodes.push_back(i); // Agregar los nodos no asignados
         }
     }
-    // **Fin de la modificación**
 
-    // Mezclar los nodos por asignar
-    std::shuffle(unassigned_nodes.begin(), unassigned_nodes.end(), rng);
-
-    // Insertar nodos en rutas
+    // Mientras queden nodos por asignar
     while (!unassigned_nodes.empty()) {
-        int node = unassigned_nodes.back();
-        unassigned_nodes.pop_back();
+        // Lista para almacenar posibles inserciones
+        struct Insertion {
+            int node; // Nodo a insertar
+            int vehicle; // Vehículo al que se insertará
+            size_t position; // Posición en la ruta donde se insertará
+            long long cost_increase; // Incremento en el costo al insertar
+        };
+        std::vector<Insertion> candidate_insertions; // Candidatos a inserción
 
-        long long min_cost_increase = INF;
-        int best_vehicle = -1;
-        size_t best_position = 0;
+        long long min_cost_increase = INF; // Costo mínimo inicial
+        long long max_cost_increase = 0; // Costo máximo inicial
 
-        // Para cada vehículo
-        for (int v = 0; v < num_vehicles; ++v) {
-            // Para cada posible posición de inserción en la ruta (entre nodos)
-            for (size_t pos = 1; pos < solution.routes[v].size(); ++pos) {
-                int prev_node = solution.routes[v][pos - 1];
-                int next_node = solution.routes[v][pos];
+        // Para cada nodo no asignado
+        for (int node : unassigned_nodes) {
+            // Para cada vehículo
+            for (int v = 0; v < num_vehicles; ++v) {
+                // Para cada posición posible en la ruta (entre nodos existentes)
+                for (size_t pos = 1; pos < solution.routes[v].size(); ++pos) {
+                    int prev_node = solution.routes[v][pos - 1]; // Nodo previo
+                    int next_node = solution.routes[v][pos]; // Nodo siguiente
 
-                // Verificar si existen tramos desde prev_node a node y de node a next_node
-                long long cost1 = data.timeMatrix[prev_node][node];
-                long long cost2 = data.timeMatrix[node][next_node];
-                long long cost0 = data.timeMatrix[prev_node][next_node];
+                    // Verificar si existen los tramos
+                    long long cost1 = data.timeMatrix[prev_node][node]; // Costo al nodo
+                    long long cost2 = data.timeMatrix[node][next_node]; // Costo desde el nodo
+                    long long cost0 = data.timeMatrix[prev_node][next_node]; // Costo directo previo-siguiente
 
-                if (cost1 != INF && cost2 != INF) {
-                    // Calcular incremento de costo
-                    long long cost_increase = cost1 + cost2 - cost0;
+                    if (cost1 != INF && cost2 != INF && cost0 != INF) {
+                        // Calcular el incremento de costo al insertar el nodo
+                        long long cost_increase = cost1 + cost2 - cost0;
 
-                    if (cost_increase < min_cost_increase) {
-                        min_cost_increase = cost_increase;
-                        best_vehicle = v;
-                        best_position = pos;
+                        // **Incluir solo si el incremento de costo es menor a la penalización por exclusión**
+                        if (cost_increase < data.exclusion_penalty) {
+                            // Actualizar los costos mínimos y máximos
+                            if (cost_increase < min_cost_increase) min_cost_increase = cost_increase;
+                            if (cost_increase > max_cost_increase) max_cost_increase = cost_increase;
+
+                            // Almacenar la inserción como candidata
+                            candidate_insertions.push_back({node, v, pos, cost_increase});
+                        }
                     }
                 }
             }
         }
 
-        if (best_vehicle != -1 && min_cost_increase < data.exclusion_penalty) {
-            // Insertar nodo en la ruta en la mejor posición
-            solution.routes[best_vehicle].insert(solution.routes[best_vehicle].begin() + best_position, node);
-
-            // Actualizar duración total
-            int prev_node = solution.routes[best_vehicle][best_position - 1];
-            int node_i = node;
-            int next_node = solution.routes[best_vehicle][best_position + 1];
-
-            long long cost0 = data.timeMatrix[prev_node][next_node];
-            long long cost1 = data.timeMatrix[prev_node][node_i];
-            long long cost2 = data.timeMatrix[node_i][next_node];
-
-            solution.total_durations[best_vehicle] += (cost1 + cost2 - cost0);
-
-            // Actualizar makespan
-            solution.makespan = std::max(solution.makespan, solution.total_durations[best_vehicle]);
-
-            // Agregar el nodo a assigned_nodes para evitar duplicados
-            assigned_nodes.insert(node);
-        } else {
-            // Excluir nodo
-            excludeNode(solution, node, data);
+        if (candidate_insertions.empty()) {
+            // Si no hay inserciones posibles, excluir los nodos restantes
+            for (int node : unassigned_nodes) {
+                excludeNode(solution, node, data);
+            }
+            break;
         }
-    }
 
-    // Recalcular duraciones totales y validar rutas
-    solution.makespan = 0;
-    for (int v = 0; v < num_vehicles; ++v) {
+        // Calcular el umbral para la lista restringida de candidatos (RCL)
+        long long threshold = min_cost_increase + alpha * (max_cost_increase - min_cost_increase);
+
+        // **Asegurar que el umbral no exceda la penalización por exclusión**
+        if (threshold >= data.exclusion_penalty) {
+            threshold = data.exclusion_penalty - 1;
+        }
+
+        // Construir la RCL
+        std::vector<Insertion> RCL;
+        for (const auto& insertion : candidate_insertions) {
+            if (insertion.cost_increase <= threshold) {
+                RCL.push_back(insertion); // Agregar las inserciones dentro del umbral
+            }
+        }
+
+        if (RCL.empty()) {
+            // Si la RCL está vacía, incluir el mejor candidato
+            RCL.push_back(*std::min_element(candidate_insertions.begin(), candidate_insertions.end(),
+                                            [](const Insertion& a, const Insertion& b) {
+                                                return a.cost_increase < b.cost_increase;
+                                            }));
+        }
+
+        // Seleccionar aleatoriamente una inserción de la RCL
+        std::uniform_int_distribution<size_t> dist(0, RCL.size() - 1);
+        const Insertion& selected_insertion = RCL[dist(rng)];
+
+        // Insertar el nodo
+        int node = selected_insertion.node;
+        int vehicle = selected_insertion.vehicle;
+        size_t position = selected_insertion.position;
+
+        solution.routes[vehicle].insert(solution.routes[vehicle].begin() + position, node);
+
+        // Actualizar las duraciones totales y el makespan
         long long total_duration = 0;
         bool route_valid = true;
-        for (size_t i = 0; i < solution.routes[v].size() - 1; ++i) {
-            int from = solution.routes[v][i];
-            int to = solution.routes[v][i + 1];
+        for (size_t i = 0; i < solution.routes[vehicle].size() - 1; ++i) {
+            int from = solution.routes[vehicle][i];
+            int to = solution.routes[vehicle][i + 1];
             long long duration = data.timeMatrix[from][to];
             if (duration != INF) {
-                total_duration += duration;
+                total_duration += duration; // Sumar la duración de los tramos
             } else {
-                // El tramo no existe
                 route_valid = false;
                 break;
             }
         }
         if (route_valid) {
-            solution.total_durations[v] = total_duration;
-            solution.makespan = std::max(solution.makespan, total_duration);
-        } else {
-            // Ruta inválida; establecer makespan a INF
-            solution.makespan = INF;
-            break;
+            solution.total_durations[vehicle] = total_duration;
+            solution.makespan = *std::max_element(solution.total_durations.begin(), solution.total_durations.end());
         }
+
+        // Eliminar el nodo de la lista de nodos no asignados
+        unassigned_nodes.erase(std::remove(unassigned_nodes.begin(), unassigned_nodes.end(), node), unassigned_nodes.end());
     }
+
+    // Recalcular las duraciones totales y validar rutas
+    solution.makespan = *std::max_element(solution.total_durations.begin(), solution.total_durations.end());
 
     return solution;
 }

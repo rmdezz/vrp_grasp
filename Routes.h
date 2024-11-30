@@ -9,7 +9,7 @@
 #include <random>
 
 // Declaración de funciones específicas de GRASP
-Solution constructGreedyRandomizedSolution(const DataModel& data, std::mt19937& rng);
+Solution constructGreedyRandomizedSolution(const DataModel& data, std::mt19937& rng, double alpha);
 
 bool localSearch(Solution& current_solution, const DataModel& data, std::mt19937& rng);
 

@@ -79,6 +79,9 @@ int main() {
     data.starts = starts;
     data.ends = ends;
     data.exclusion_penalty = 100; // Penalización por nodo excluido
+    
+    // Parámetro alpha
+    double alpha = 0.7; // valor entre 0.0 y 1.0
 
     // Inicializar generador de números aleatorios
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -98,7 +101,7 @@ int main() {
     // Fase de Construcción y Mejora
     while (std::chrono::high_resolution_clock::now() < end_time) {
         // Construir una solución inicial
-        Solution current_solution = constructGreedyRandomizedSolution(data, rng);
+        Solution current_solution = constructGreedyRandomizedSolution(data, rng, alpha);
 
         // Aplicar búsqueda local hasta que no haya mejoras
         bool improved = true;
