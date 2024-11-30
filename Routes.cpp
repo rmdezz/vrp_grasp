@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <iostream>
 #include <queue>
+#include <unordered_set>
 
 // Constante para representar un valor infinito
 const long long INF = std::numeric_limits<long long>::max();
@@ -98,20 +99,30 @@ Solution constructGreedyRandomizedSolution(const DataModel& data, std::mt19937& 
         // Las duraciones totales se actualizarán al insertar nodos
     }
 
-    // Crear una lista de nodos por asignar (excluyendo starts y ends)
+    // **Inicio de la modificación: Excluir nodos ya asignados en rutas iniciales**
+    // Crear un conjunto de nodos ya asignados (incluyendo nodos intermedios de las rutas iniciales)
+    std::unordered_set<int> assigned_nodes;
+    for (const auto& route : solution.routes) {
+        for (int node : route) {
+            assigned_nodes.insert(node);
+        }
+    }
+
+    // Crear la lista de nodos por asignar excluyendo los nodos ya asignados
     std::vector<int> unassigned_nodes;
     for (size_t i = 0; i < data.ubigeos.size(); ++i) {
         bool is_start_or_end = false;
-        for (size_t j = 0; j < num_vehicles; ++j) {
-            if (i == data.starts[j] || i == data.ends[j]) {
+        for (int v = 0; v < num_vehicles; ++v) {
+            if (i == data.starts[v] || i == data.ends[v]) {
                 is_start_or_end = true;
                 break;
             }
         }
-        if (!is_start_or_end) {
+        if (!is_start_or_end && assigned_nodes.find(i) == assigned_nodes.end()) {
             unassigned_nodes.push_back(i);
         }
     }
+    // **Fin de la modificación**
 
     // Mezclar los nodos por asignar
     std::shuffle(unassigned_nodes.begin(), unassigned_nodes.end(), rng);
@@ -167,6 +178,9 @@ Solution constructGreedyRandomizedSolution(const DataModel& data, std::mt19937& 
 
             // Actualizar makespan
             solution.makespan = std::max(solution.makespan, solution.total_durations[best_vehicle]);
+
+            // Agregar el nodo a assigned_nodes para evitar duplicados
+            assigned_nodes.insert(node);
         } else {
             // Excluir nodo
             excludeNode(solution, node, data);
